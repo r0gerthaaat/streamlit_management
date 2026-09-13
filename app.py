@@ -48,19 +48,17 @@ st.sidebar.subheader("Базова структура сегментів (2024)"
 # 3) Преміум: 1.70 млн * $62,059 = $105.5 млрд
 # Сукупна виручка = $410.9 млрд | Питома маржа: Premium > Mid > Economy
 segments = {
-    "Economy (Corolla, Yaris)": {"base_vol": 4.82, "price": 25_000, "vc": 20_000, "color": "#6c757d"},
-    "Mid / SUV (RAV4, Camry)": {"base_vol": 4.30, "price": 43_000, "vc": 31_000, "color": "#1d3557"},
+    "Economy (Corolla, Yaris)": {"base_vol": 4.82, "price": 25_000, "vc": 22_000, "color": "#6c757d"},
+    "Mid / SUV (RAV4, Camry)": {"base_vol": 4.30, "price": 43_000, "vc": 33_300, "color": "#1d3557"},
     "Premium (Lexus, LC)": {"base_vol": 1.70, "price": 62_059, "vc": 39_059, "color": "#d90429"}
 }
 
-# Фіксовані витрати FC виведені з формули: TR ($410.9B) - VC ($315.8B) - Прибуток ($45.1B) = $50.0 млрд
 fc_base = st.sidebar.number_input(
     "Постійні річні витрати (FC, $ млрд):",
     min_value=10.0,
     max_value=90.0,
     value=50.0,
-    step=2.0,
-    help="Амортизація заводів, науково-дослідні розробки (R&D), утримання штаб-квартири та постійний персонал."
+    step=1.0,
 )
 
 # ----------------- РОЗРАХУНКОВА ЧАСТИНА -----------------
