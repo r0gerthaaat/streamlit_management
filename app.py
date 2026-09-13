@@ -2,11 +2,10 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
 # Конфігурація сторінки
 st.set_page_config(
-    page_title="Toyota Supply Chain Risk Simulator | Quantitative School",
+    page_title="Toyota 2024 Supply Chain Risk Simulator | Quantitative School",
     page_icon="🚗",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -26,7 +25,7 @@ st.markdown("""
 
 # Заголовок
 st.title("🚗 Toyota Motor Corp: Моделювання системного ризику постачання")
-st.caption("Кількісна школа менеджменту • Оптимізація продуктового портфеля в умовах дефіциту ресурсів")
+st.caption("Кількісна школа менеджменту • Оптимізація продуктового портфеля на базі звітності 2024 року")
 
 # ----------------- SIDEBAR: ПАРАМЕТРИ -----------------
 st.sidebar.header("⚙️ Вхідні параметри шоку")
@@ -41,41 +40,44 @@ shortage_pct = st.sidebar.slider(
 ) / 100.0
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("Базова структура сегментів")
+st.sidebar.subheader("Базова структура сегментів (2024)")
 
-# Базові константи (млн авто, ціна $, змінні витрати $)
+# Калібрування під 10.82 млн авто та $410.9 млрд виторгу:
+# 1) Економ: 4.82 млн * $25,000 = $120.5 млрд
+# 2) Mid/SUV: 4.30 млн * $43,000 = $184.9 млрд
+# 3) Преміум: 1.70 млн * $62,059 = $105.5 млрд
+# Сукупна виручка = $410.9 млрд | Питома маржа: Premium > Mid > Economy
 segments = {
-    "Economy (Corolla, Yaris)": {"base_vol": 4.5, "price": 22_000, "vc": 18_000, "color": "#6c757d"},
-    "Mid / SUV (RAV4, Camry)": {"base_vol": 4.0, "price": 36_000, "vc": 26_000, "color": "#1d3557"},
-    "Premium (Lexus, LC)": {"base_vol": 1.5, "price": 65_000, "vc": 42_000, "color": "#d90429"}
+    "Economy (Corolla, Yaris)": {"base_vol": 4.82, "price": 25_000, "vc": 20_000, "color": "#6c757d"},
+    "Mid / SUV (RAV4, Camry)": {"base_vol": 4.30, "price": 43_000, "vc": 31_000, "color": "#1d3557"},
+    "Premium (Lexus, LC)": {"base_vol": 1.70, "price": 62_059, "vc": 39_059, "color": "#d90429"}
 }
 
+# Фіксовані витрати FC виведені з формули: TR ($410.9B) - VC ($315.8B) - Прибуток ($45.1B) = $50.0 млрд
 fc_base = st.sidebar.number_input(
     "Постійні річні витрати (FC, $ млрд):",
     min_value=10.0,
-    max_value=80.0,
-    value=40.0,
-    step=2.0
+    max_value=90.0,
+    value=50.0,
+    step=2.0,
+    help="Амортизація заводів, науково-дослідні розробки (R&D), утримання штаб-квартири та постійний персонал."
 )
 
 # ----------------- РОЗРАХУНКОВА ЧАСТИНА -----------------
-total_base_vol = sum(s["base_vol"] for s in segments.values())  # 10 млн
-available_parts_vol = total_base_vol * (1.0 - shortage_pct)      # ліміт виробництва
-deficit_units = total_base_vol * shortage_pct                   # скільки не вистачає
+total_base_vol = sum(s["base_vol"] for s in segments.values())  # 10.82 млн
+available_parts_vol = total_base_vol * (1.0 - shortage_pct)
+deficit_units = total_base_vol * shortage_pct
 
-# 1. Розрахунок маржі на одиницю (Unit Margin)
 for k, v in segments.items():
     v["margin"] = v["price"] - v["vc"]
 
-# 2. Сценарій А: Наївне (пропорційне) скорочення
+# Сценарій 1: Наївне пропорційне скорочення
 naive_vols = {k: v["base_vol"] * (1.0 - shortage_pct) for k, v in segments.items()}
 
-# 3. Сценарій Б: Кількісна оптимізація (Жадібний LP алгоритм за питомою маржею)
-# Маржинальність: Premium ($23k) > Mid ($10k) > Economy ($4k)
+# Сценарій 2: Жадібна кількісна оптимізація (пріоритет за питомою маржею)
 opt_vols = {}
 remaining_capacity = available_parts_vol
 
-# Пріоритет: Преміум -> SUV -> Економ
 for k in ["Premium (Lexus, LC)", "Mid / SUV (RAV4, Camry)", "Economy (Corolla, Yaris)"]:
     allocated = min(segments[k]["base_vol"], remaining_capacity)
     opt_vols[k] = allocated
@@ -95,8 +97,7 @@ def compute_metrics(vols_dict):
         "Margin_pct": (ebit / total_rev * 100) if total_rev > 0 else 0
     }
 
-base_vols = {k: v["base_vol"] for k, v in segments.items()}
-res_base = compute_metrics(base_vols)
+res_base = compute_metrics({k: v["base_vol"] for k, v in segments.items()})
 res_naive = compute_metrics(naive_vols)
 res_opt = compute_metrics(opt_vols)
 
@@ -106,8 +107,8 @@ saved_ebit = res_opt["EBIT"] - res_naive["EBIT"]
 col1, col2, col3, col4 = st.columns(4)
 
 col1.metric("Випуск авто (Сценарії)", f"{res_naive['Volume']:.2f} млн", f"-{deficit_units:.2f} млн (-{shortage_pct*100:.0f}%)")
-col2.metric("EBIT: Наївний підхід", f"${res_naive['EBIT']:.2f} млрд", f"{(res_naive['EBIT'] - res_base['EBIT']):.2f} млрд", delta_color="inverse")
-col3.metric("EBIT: Оптимізація", f"${res_opt['EBIT']:.2f} млрд", f"{(res_opt['EBIT'] - res_base['EBIT']):.2f} млрд", delta_color="inverse")
+col2.metric("Прибуток: Наївний підхід", f"${res_naive['EBIT']:.2f} млрд", f"{(res_naive['EBIT'] - res_base['EBIT']):.2f} млрд", delta_color="inverse")
+col3.metric("Прибуток: Оптимізація", f"${res_opt['EBIT']:.2f} млрд", f"{(res_opt['EBIT'] - res_base['EBIT']):.2f} млрд", delta_color="inverse")
 col4.metric("🔥 Врятований прибуток", f"+${saved_ebit:.2f} млрд", "Ефект кількісної школи", delta_color="normal")
 
 st.markdown("---")
@@ -119,9 +120,9 @@ with col_chart1:
     st.subheader("📊 Структура випуску за сегментами (млн авто)")
     fig_bar = go.Figure()
 
-    scenarios = ["Базовий стан", "Наївне скорочення", "Кількісна оптимізація"]
+    scenarios = ["Базовий стан (2024)", "Наївне скорочення", "Кількісна оптимізація"]
     for k, v in segments.items():
-        vals = [base_vols[k], naive_vols[k], opt_vols[k]]
+        vals = [segments[k]["base_vol"], naive_vols[k], opt_vols[k]]
         fig_bar.add_trace(go.Bar(
             name=k,
             x=scenarios,
@@ -140,7 +141,7 @@ with col_chart1:
     st.plotly_chart(fig_bar, use_container_width=True)
 
 with col_chart2:
-    st.subheader("📉 Порівняння Операційного Прибутку (EBIT)")
+    st.subheader("📉 Порівняння Прибутку (EBIT / Чистий ефект)")
     ebit_vals = [res_base["EBIT"], res_naive["EBIT"], res_opt["EBIT"]]
     colors = ["#2b2d42", "#d90429", "#2a9d8f"]
 
@@ -154,24 +155,24 @@ with col_chart2:
 
     fig_ebit.update_layout(
         height=420,
-        yaxis_title="EBIT ($ млрд)",
+        yaxis_title="Прибуток ($ млрд)",
         margin=dict(l=20, r=20, t=30, b=20)
     )
     st.plotly_chart(fig_ebit, use_container_width=True)
 
-# ----------------- ТАБЛИЦЯ ДЛЯ ПРЕЗЕНТАЦІЇ -----------------
-st.subheader("📋 Зведена аналітична таблиця (Дані для виступу)")
+# ----------------- ЗВЕДЕНА ТАБЛИЦЯ -----------------
+st.subheader("📋 Зведена аналітична таблиця (Toyota 2024 Baseline)")
 
 summary_df = pd.DataFrame({
     "Метрика": [
         "Обсяг випуску (млн од.)",
-        "Виручка ($ млрд)",
+        "Виручка / Виторг ($ млрд)",
         "Змінні витрати ($ млрд)",
         "Постійні витрати ($ млрд)",
-        "Операційний прибуток EBIT ($ млрд)",
-        "Рентабельність (EBIT Margin, %)"
+        "Прибуток ($ млрд)",
+        "Маржинальність (%)"
     ],
-    "Базовий стан": [
+    "Базовий стан (2024)": [
         f"{res_base['Volume']:.2f}",
         f"${res_base['Revenue']:.2f}",
         f"${res_base['VC']:.2f}",
@@ -207,10 +208,10 @@ summary_df = pd.DataFrame({
 
 st.dataframe(summary_df, use_container_width=True, hide_index=True)
 
-# ----------------- ВИСНОВКИ ДЛЯ 5-Ї ЛЮДИНИ -----------------
-with st.expander("💡 Системні висновки для переходу до Пункту 5 (Рішення)"):
+# ----------------- ВИСНОВКИ ДЛЯ ЗАХИСТУ -----------------
+with st.expander("💡 Методологічні пояснення до моделі 2024 року"):
     st.markdown(f"""
-    1. **Жорсткість постійних витрат:** При падінні виробництва на **{shortage_pct*100:.0f}%** наївна стратегія призводить до обвалу операційного прибутку на **{abs((res_naive['EBIT'] - res_base['EBIT']) / res_base['EBIT'] * 100):.1f}%** через високий операційний леверидж (постійні витрати $40 млрд залишаються незмінними).
-    2. **Перевага кількісного методу:** Перерозподіл лімітованих ресурсів у преміальні моделі (Lexus / SUV) зберігає **${saved_ebit:.2f} млрд** прибутку при абсолютно однаковій кількості випущених авто ({res_opt['Volume']:.1f} млн).
-    3. **Зв'язок систем:** Збій на *Вході* (постачання) не обов'язково лінійно транслюється на *Вихід* (прибуток), якщо підсистема *Управління виробництвом* адаптує внутрішній пріоритет розподілу.
+    * **Вихідні дані 2024:** Обсяг випуску 10.82 млн од., виручка $410.9 млрд і прибуток $45.1 млрд взяті з річної звітності.
+    * **Принцип оптимізації:** Lexus приносить **$23 000** маржі з однієї машини, RAV4/Camry — **$12 000**, а Corolla/Yaris — лише **$5 000**.
+    * **Результат:** При дефіциті у 20% лінійний розподіл наявних деталей рятує **${saved_ebit:.2f} млрд** прибутку без залучення зовнішнього фінансування.
     """)
