@@ -178,7 +178,7 @@ summary_df = pd.DataFrame({
         f"${res_base['EBIT']:.2f}",
         f"{res_base['Margin_pct']:.1f}%"
     ],
-    f"Наївний (-{shortage_pct*100:.0f}%)": [
+    f"Наївне скорочення (-{shortage_pct*100:.0f}%)": [
         f"{res_naive['Volume']:.2f}",
         f"${res_naive['Revenue']:.2f}",
         f"${res_naive['VC']:.2f}",
@@ -186,7 +186,7 @@ summary_df = pd.DataFrame({
         f"${res_naive['EBIT']:.2f}",
         f"{res_naive['Margin_pct']:.1f}%"
     ],
-    "Оптимізація міксу": [
+    "Кількісна оптимізація алгоритмом ЛП": [
         f"{res_opt['Volume']:.2f}",
         f"${res_opt['Revenue']:.2f}",
         f"${res_opt['VC']:.2f}",
